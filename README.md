@@ -1,2 +1,1 @@
-# IS115G1T10
-Algorithm Project
+# IS115 Project README
