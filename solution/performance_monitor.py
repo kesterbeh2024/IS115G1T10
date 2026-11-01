@@ -3,13 +3,12 @@
 import argparse
 import csv
 import json
-import tkinter as tk
-from tkinter import ttk
 from pathlib import Path
 from turtle import distance
 from typing import Any, Dict, List, Optional
 from simulator.loaders import day_input_paths
 import sys
+import json
 print(sys.path)
 
 
@@ -30,24 +29,100 @@ def calculate_metrics(
 
     # Illustration only: replace or extend this with your chosen metric.
     
-    tsop = 0
-    
-    
-    number_of_trips = 0
-    distance = 0
-    for event in events:
-        temp1_distance = 0
-        temp2_distance = 0
-        if event["event_type"] == "hub_departure":
-            temp1_distance = distance["origin"]["destination"]
-            number_of_trips += 1
+    """ Calculates operational metrics and the Total Service & Operational Penalty (TSOP). Parameters: parcels (list): Row dicts from day demand CSV. distances (list): Row dicts from dist.csv. config (dict): Fleet configuration from config.json. events (list): Event dicts from simulation log.txt in chronological order. Returns: dict: Metric names mapped to JSON-serializable numeric values. """
 
-        if event["event_type"] == "hub_arrival":
-            temp2_distance = distance["origin"]["destination"]
+    # 1. Build distance graph matrix
+    dist_map = {}
+    for row in distances:
+        u = row['location_1']
+        v = row['location_2']
+        w = float(row['dist'])
+        if u not in dist_map:
+            dist_map[u] = {}
+        dist_map[u][v] = w
 
-        distance += temp1_distance - temp2_distance
-    return {"number_of_trips": number_of_trips,"total_distance":distance}
+    # 2. Build parcel lookup dictionary
+    parcel_info = {}
+    for p in parcels:
+        pid = p['parcel_id']
+        parcel_info[pid] = {
+            'dest': p['delivery_location_id'],
+            'window_end': parse_hhmm(p['delivery_window_end'])
+        }
+
+    total_parcels = len(parcels)
+    delivered_times = {}
+    trip_deliveries = {} # (vehicle_id, trip_id) -> list of (delivery_time, location_id)
+    hub_departures = 0
+
+    # 3. Parse events log
+    for ev in events:
+        etype = ev.get('event_type')
+        if etype == 'hub_departure':
+            hub_departures += 1
+        elif etype == 'delivery':
+            pid = ev['parcel_id']
+            t = float(ev['time'])
+            delivered_times[pid] = t
+            v_id = ev['vehicle_id']
+            tr_id = ev['trip_id']
+            key = (v_id, tr_id)
+            if key not in trip_deliveries:
+                trip_deliveries[key] = []
+            dest = parcel_info[pid]['dest']
+            trip_deliveries[key].append((t, dest))
+
+    # 4. Reconstruct actual vehicle trip distances
+    total_distance_km = 0.0
+    for key, drops in trip_deliveries.items():
+        # Sort drops chronologically by delivery timestamp to track exact route
+        drops.sort(key=lambda x: x[0])
+        route_locs = [d[1] for d in drops]
+        
+        curr = "HUB"
+        for loc in route_locs:
+            if curr in dist_map and loc in dist_map[curr]:
+                total_distance_km += dist_map[curr][loc]
+            curr = loc
+        # Return trip to HUB
+        if curr in dist_map and "HUB" in dist_map[curr]:
+            total_distance_km += dist_map[curr]["HUB"]
+
+    # 5. Calculate Lateness and Non-Delivery Penalties
+    total_lateness_min = 0.0
+    delivered_count = len(delivered_times)
+    undelivered_count = total_parcels - delivered_count
+
+    for pid, del_time in delivered_times.items():
+        w_end = parcel_info[pid]['window_end']
+        lateness = max(0.0, del_time - w_end)
+        total_lateness_min += lateness
+
+    # Cost parameters
+    c_dist = 1.0       # $1.00 per km
+    c_late = 0.50      # $0.50 per min of lateness
+    c_undel = 100.0    # $100.00 fixed penalty per undelivered parcel
+
+    tsop = (c_dist * total_distance_km) + (c_late * total_lateness_min) + (c_undel * undelivered_count)
+
+    return {
+        "tsop": round(tsop, 2),
+        "total_distance_km": round(total_distance_km, 2),
+        "total_lateness_min": round(total_lateness_min, 2),
+        "undelivered_parcels": undelivered_count,
+        "delivered_parcels": delivered_count,
+        "total_trips": hub_departures
+    }
+
     
+    
+def parse_hhmm(t_str):
+    """Converts 'HH:MM' string to float minutes after midnight."""
+    if not t_str:
+        return 0.0
+    h, m = map(int, t_str.split(':'))
+    return float(h * 60 + m)
+
 
 
 def main(argv: Optional[List[str]] = None) -> int:
