@@ -3,10 +3,14 @@
 import argparse
 import csv
 import json
+import tkinter as tk
+from tkinter import ttk
 from pathlib import Path
+from turtle import distance
 from typing import Any, Dict, List, Optional
-
 from simulator.loaders import day_input_paths
+import sys
+print(sys.path)
 
 
 def calculate_metrics(
@@ -25,11 +29,25 @@ def calculate_metrics(
     """
 
     # Illustration only: replace or extend this with your chosen metric.
+    
+    tsop = 0
+    
+    
     number_of_trips = 0
+    distance = 0
     for event in events:
+        temp1_distance = 0
+        temp2_distance = 0
         if event["event_type"] == "hub_departure":
+            temp1_distance = distance["origin"]["destination"]
             number_of_trips += 1
-    return {"number_of_trips": number_of_trips}
+
+        if event["event_type"] == "hub_arrival":
+            temp2_distance = distance["origin"]["destination"]
+
+        distance += temp1_distance - temp2_distance
+    return {"number_of_trips": number_of_trips,"total_distance":distance}
+    
 
 
 def main(argv: Optional[List[str]] = None) -> int:
