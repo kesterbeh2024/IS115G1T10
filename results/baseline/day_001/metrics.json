@@ -1,3 +1,8 @@
 {
-  "number_of_trips": 20
+  "tsop": 63370.17,
+  "total_distance_km": 5243.27,
+  "total_lateness_min": 26253.8,
+  "undelivered_parcels": 450,
+  "delivered_parcels": 349,
+  "total_trips": 20
 }
