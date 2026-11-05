@@ -36,11 +36,11 @@ def insert_cheapest(current_route, new_parcelid, parcel_dict, dist_matrix):
     best_route = None
     best_dist = float('inf')
     for pos in range(len(current_route) + 1):
-        cand = current_route[:pos] + [new_parcelid] + current_route[pos:]
-        d = calculate_route_distance(cand, parcel_dict, dist_matrix)
+        candidate = current_route[:pos] + [new_parcelid] + current_route[pos:]
+        d = calculate_route_distance(candidate, parcel_dict, dist_matrix)
         if d < best_dist:
             best_dist = d
-            best_route = cand
+            best_route = candidate
     return best_route
 
 def two_opt_optimize(route_parcelids, parcel_dict, dist_matrix, max_iter=50):
