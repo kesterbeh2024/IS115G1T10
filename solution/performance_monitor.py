@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from turtle import distance
 from typing import Any, Dict, List, Optional
-import simulator
 from simulator.loaders import day_input_paths
 import sys
 import json
